@@ -1,0 +1,84 @@
+- hosts: localhost
+  connection: local
+
+  vars:
+
+  tasks:
+      
+    -   name: Check the version of OS
+        command: hostnamectl
+        register: os_check
+        ignore_errors: yes  
+
+    -   name: Absent the Irrelevant files - Ubuntu 20
+        file:
+          path: /etc/apt/sources.list.d/ansible-ubuntu-ansible-focal.list
+          state: absent
+        when:
+          - os_check.stdout | regex_search("Ubuntu 20")
+
+    -   name: Add Prosody Key - Ubuntu
+        apt_key:
+            url: https://prosody.im/files/prosody-debian-packages.key 
+            state: present
+        when:
+            - os_check.stdout | regex_search("Ubuntu")
+
+    -   name: Add Repo of Prosody - Ubuntu 20
+        apt_repository:
+            repo: deb https://packages.prosody.im/debian focal main
+            state: present
+        when:
+          - os_check.stdout | regex_search("Ubuntu 20")
+
+    -   name: Add Repo of Prosody - Ubuntu 18
+        apt_repository:
+            repo: deb https://packages.prosody.im/debian bionic main
+            state: present
+        when:
+          - os_check.stdout | regex_search("Ubuntu 18")
+
+    -   name: Install Prosody - Ubuntu
+        apt: 
+            name: "{{ item }}" 
+            update_cache: yes 
+            state: present
+        loop: 
+            - prosody
+        when:
+            - os_check.stdout | regex_search("Ubuntu")
+
+    -   name: Install Dependencies - CentOS 8
+        yum: 
+            name: "{{ item }}" 
+            state: present
+        loop: 
+            - https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+            - subscription-manager
+        when:
+            - os_check.stdout | regex_search("CentOS Linux 8")
+
+    -   name: Install Dependencies - CentOS 8
+        shell: "{{ item }}"
+        loop:
+            - subscription-manager repos --enable "codeready-builder-for-rhel-8-x86_64-rpms"
+            - dnf config-manager --set-enabled PowerTools
+        ignore_errors: yes
+        when:
+            - os_check.stdout | regex_search("CentOS Linux 8")
+
+    -   name: Install Prosody - CentOS
+        yum: 
+            name: "{{ item }}" 
+            state: present
+        loop: 
+            - prosody
+        when:
+            - os_check.stdout | regex_search("CentOS")
+        
+    -   name: Start Prosody
+        systemd:
+            name: prosody
+            state: restarted
+            enabled: yes
+
